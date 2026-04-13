@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mail Organizer</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/Office.js" type="text/javascript"></script>
+  <style>
+    /* ── Reset & Base ── */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --gold: #D4A017;
+      --gold-light: #F5E6B8;
+      --gold-hover: #B8860B;
+      --black: #1A1A1A;
+      --bg: #FAFAFA;
+      --bg-section: #FFFFFF;
+      --border: #E8E8E8;
+      --text: #2D2D2D;
+      --text-light: #777;
+      --success: #27AE60;
+      --success-bg: #E8F8F0;
+      --danger: #E74C3C;
+      --flag-today: #E74C3C;
+      --flag-tomorrow: #E67E22;
+      --flag-week: #3498DB;
+      --flag-none: #95A5A6;
+      --flag-complete: #27AE60;
+      --radius: 6px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    body {
+      font-family: 'Segoe UI', -apple-system, sans-serif;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.4;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--black);
+      color: white;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-icon {
+      width: 20px; height: 20px;
+      background: var(--gold);
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 11px; color: var(--black);
+    }
+    .header h1 {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    /* ── Status Bar ── */
+    .status-bar {
+      padding: 6px 14px;
+      font-size: 11px;
+      color: var(--text-light);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+    }
+    .status-bar .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--text-light);
+      flex-shrink: 0;
+    }
+    .status-bar.ready .dot { background: var(--success); }
+    .status-bar.busy .dot { background: var(--gold); animation: pulse 1s infinite; }
+    .status-bar.error .dot { background: var(--danger); }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      top: 44px;
+      left: 8px; right: 8px;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-weight: 500;
+      z-index: 200;
+      transform: translateY(-120%);
+      transition: transform 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .toast.show { transform: translateY(0); }
+    .toast.success { background: var(--success-bg); color: #1B7A3D; border: 1px solid #A3D9B9; }
+    .toast.error { background: #FDEDEC; color: #C0392B; border: 1px solid #F5B7B1; }
+
+    /* ── Search ── */
+    .search-wrap {
+      padding: 10px 14px 6px;
+      position: sticky;
+      top: 40px;
+      background: var(--bg);
+      z-index: 90;
+    }
+    .search-input {
+      width: 100%;
+      padding: 7px 10px 7px 30px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-family: inherit;
+      background: var(--bg-section) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat 9px center;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-input:focus { border-color: var(--gold); }
+    .search-input::placeholder { color: #BBB; }
+
+    /* ── Scrollable Content ── */
+    .content {
+      padding: 4px 0 80px;
+      overflow-y: auto;
+    }
+
+    /* ── Section ── */
+    .section {
+      margin: 4px 10px;
+      background: var(--bg-section);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .section-header {
+      padding: 7px 12px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-light);
+      background: #F5F5F5;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+    .section-header:hover { background: #EFEFEF; }
+    .section-header .chevron {
+      font-size: 10px;
+      transition: transform 0.2s;
+      color: #AAA;
+    }
+    .section-header.collapsed .chevron { transform: rotate(-90deg); }
+    .section-body { padding: 4px; }
+    .section-body.hidden { display: none; }
+
+    /* ── Folder Buttons ── */
+    .folder-btn {
+      display: block;
+      width: 100%;
+      padding: 7px 10px;
+      border: none;
+      background: transparent;
+      text-align: left;
+      font-size: 12px;
+      font-family: inherit;
+      color: var(--text);
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.15s;
+      position: relative;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .folder-btn:hover {
+      background: var(--gold-light);
+      color: var(--black);
+    }
+    .folder-btn:active {
+      background: var(--gold);
+      color: var(--black);
+      transform: scale(0.98);
+    }
+    .folder-btn .folder-icon {
+      display: inline-block;
+      width: 14px;
+      margin-right: 6px;
+      text-align: center;
+      font-size: 11px;
+    }
+    .folder-btn.hidden-by-search { display: none; }
+
+    /* ── Flag Buttons ── */
+    .flag-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 4px;
+    }
+    .flag-btn {
+      padding: 8px 6px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: white;
+      font-size: 11px;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .flag-btn:hover { border-color: var(--gold); background: var(--gold-light); }
+    .flag-btn:active { transform: scale(0.97); }
+    .flag-btn .flag-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .flag-btn.full-width { grid-column: 1 / -1; }
+
+    /* ── Thread toggle ── */
+    .thread-toggle {
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-light);
+      border-bottom: 1px solid var(--border);
+    }
+    .toggle-switch {
+      position: relative;
+      width: 32px; height: 18px;
+      background: #CCC;
+      border-radius: 9px;
+      cursor: pointer;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .toggle-switch.on { background: var(--gold); }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 14px; height: 14px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .toggle-switch.on::after { transform: translateX(14px); }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-icon">S</div>
+    <h1>Mail Organizer</h1>
+  </div>
+
+  <!-- Status Bar -->
+  <div class="status-bar ready" id="statusBar">
+    <span class="dot"></span>
+    <span id="statusText">Select an email to organize</span>
+  </div>
+
+  <!-- Thread Toggle -->
+  <div class="thread-toggle">
+    <div class="toggle-switch on" id="threadToggle" onclick="toggleThread()"></div>
+    <span>Move entire conversation thread</span>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Search -->
+  <div class="search-wrap">
+    <input type="text" class="search-input" id="searchInput" placeholder="Search folders..." oninput="filterFolders()"/>
+  </div>
+
+  <!-- Content -->
+  <div class="content" id="content">
+
+    <!-- FLAGS -->
+    <div class="section" data-section="flags">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span>⚑ Flag for Action</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <div class="flag-grid">
+          <button class="flag-btn" onclick="flagEmail('today')">
+            <span class="flag-dot" style="background:#E74C3C"></span> Today
+          </button>
+          <button class="flag-btn" onclick="flagEmail('tomorrow')">
+            <span class="flag-dot" style="background:#E67E22"></span> Tomorrow
+          </button>
+          <button class="flag-btn" onclick="flagEmail('thisWeek')">
+            <span class="flag-dot" style="background:#3498DB"></span> This Week
+          </button>
+          <button class="flag-btn" onclick="flagEmail('noDate')">
+            <span class="flag-dot" style="background:#95A5A6"></span> No Date
+          </button>
+          <button class="flag-btn full-width" onclick="flagEmail('complete')">
+            <span class="flag-dot" style="background:#27AE60"></span> Mark Complete
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPERATIONS -->
+    <div class="section" data-section="operations">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span>📋 Operations</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <button class="folder-btn" onclick="moveToFolder('Operations/Commercial')"><span class="folder-icon">📁</span>Commercial</button>
+        <button class="folder-btn" onclick="moveToFolder('Operations/ERP')"><span class="folder-icon">📁</span>ERP</button>
+        <button class="folder-btn" onclick="moveToFolder('Operations/Tendering')"><span class="folder-icon">📁</span>Tendering</button>
+        <button class="folder-btn" onclick="moveToFolder('Operations/PMO Reports')"><span class="folder-icon">📁</span>PMO Reports</button>
+        <button class="folder-btn" onclick="moveToFolder('Operations/Team Management')"><span class="folder-icon">📁</span>Team Management</button>
+        <button class="folder-btn" onclick="moveToFolder('Operations/Operations Management')"><span class="folder-icon">📁</span>Operations Management</button>
+      </div>
+    </div>
+
+    <!-- COST MANAGEMENT -->
+    <div class="section" data-section="cost">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span>💰 Cost Management</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <button class="folder-btn" onclick="moveToFolder('Cost Management/Cost Approvals')"><span class="folder-icon">📁</span>Cost Approvals</button>
+        <button class="folder-btn" onclick="moveToFolder('Cost Management/Procurement')"><span class="folder-icon">📁</span>Procurement</button>
+        <button class="folder-btn" onclick="moveToFolder('Cost Management/Engineering')"><span class="folder-icon">📁</span>Engineering</button>
+      </div>
+    </div>
+
+    <!-- QS & COMMERCIAL -->
+    <div class="section" data-section="qs">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span>📊 QS & Commercial</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <button class="folder-btn" onclick="moveToFolder('QS & Commercial')"><span class="folder-icon">📁</span>QS & Commercial</button>
+        <button class="folder-btn" onclick="moveToFolder('QS & Commercial/Sub-Contractors Invoices')"><span class="folder-icon">📁</span>Sub-Contractors Invoices</button>
+      </div>
+    </div>
+
+    <!-- BUSINESS DEVELOPMENT -->
+    <div class="section" data-section="bizdev">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span>🤝 Business Development</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <button class="folder-btn" onclick="moveToFolder('Business Development')"><span class="folder-icon">📁</span>Business Development</button>
+      </div>
+    </div>
+
+    <!-- PROJECTS -->
+    <div class="section" data-section="projects">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span>🏗️ Projects</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <button class="folder-btn" onclick="moveToFolder('Projects/Ajdan - Tower 1')"><span class="folder-icon">📁</span>Ajdan - Tower 1</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/Tilal')"><span class="folder-icon">📁</span>Tilal</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/Beach Club')"><span class="folder-icon">📁</span>Beach Club</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/Yanbu')"><span class="folder-icon">📁</span>Yanbu</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/Rajhi, Exit 2')"><span class="folder-icon">📁</span>Rajhi, Exit 2</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/SNB')"><span class="folder-icon">📁</span>SNB</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/Four Seasons')"><span class="folder-icon">📁</span>Four Seasons</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/Rosewood')"><span class="folder-icon">📁</span>Rosewood</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/Wady Safar')"><span class="folder-icon">📁</span>Wady Safar</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/Montijoon')"><span class="folder-icon">📁</span>Montijoon</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/Pending Closing Out')"><span class="folder-icon">📁</span>Pending Closing Out</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/Medlog')"><span class="folder-icon">📁</span>Medlog</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/CLH Closing Out')"><span class="folder-icon">📁</span>CLH Closing Out</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/HDT')"><span class="folder-icon">📁</span>HDT</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/Liwan')"><span class="folder-icon">📁</span>Liwan</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/Tharawat')"><span class="folder-icon">📁</span>Tharawat</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/TL3 Offices')"><span class="folder-icon">📁</span>TL3 Offices</button>
+        <button class="folder-btn" onclick="moveToFolder('Projects/Icon Tower')"><span class="folder-icon">📁</span>Icon Tower</button>
+      </div>
+    </div>
+
+    <!-- OTHER -->
+    <div class="section" data-section="other">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span>📌 Other</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <button class="folder-btn" onclick="moveToFolder('Projects Reports')"><span class="folder-icon">📁</span>Projects Reports</button>
+        <button class="folder-btn" onclick="moveToFolder('Others')"><span class="folder-icon">📁</span>Others</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    /* ══════════════════════════════════════════
+       STATE
+       ══════════════════════════════════════════ */
+    let moveThread = true;       // move entire conversation
+    let folderCache = {};        // displayName -> folderId
+    let currentItemId = null;
+    let currentConversationId = null;
+
+    /* ══════════════════════════════════════════
+       OFFICE INIT
+       ══════════════════════════════════════════ */
+    Office.onReady(function(info) {
+      if (info.host === Office.HostType.Outlook) {
+        updateStatus('ready', 'Ready — select an email');
+        // Listen for item changes (pinned pane)
+        Office.context.mailbox.addHandlerAsync(
+          Office.EventType.ItemChanged,
+          onItemChanged
+        );
+        loadCurrentItem();
+      }
+    });
+
+    function onItemChanged() {
+      loadCurrentItem();
+    }
+
+    function loadCurrentItem() {
+      var item = Office.context.mailbox.item;
+      if (item) {
+        currentItemId = item.itemId;
+        currentConversationId = item.conversationId;
+        var subject = item.subject || '(no subject)';
+        updateStatus('ready', truncate(subject, 40));
+      } else {
+        currentItemId = null;
+        currentConversationId = null;
+        updateStatus('ready', 'Select an email to organize');
+      }
+    }
+
+    /* ══════════════════════════════════════════
+       MICROSOFT GRAPH HELPERS
+       ══════════════════════════════════════════ */
+
+    /**
+     * Get an access token for Microsoft Graph via Office.js SSO.
+     * Falls back to getCallbackTokenAsync for classic Outlook.
+     */
+    function getGraphToken() {
+      return new Promise(function(resolve, reject) {
+        // Try SSO first
+        if (Office.context.auth && Office.context.auth.getAccessTokenAsync) {
+          Office.context.auth.getAccessTokenAsync({ allowSignInPrompt: true }, function(result) {
+            if (result.status === Office.AsyncResultStatus.Succeeded) {
+              resolve(result.value);
+            } else {
+              // Fallback: use REST callback token
+              getRestToken(resolve, reject);
+            }
+          });
+        } else {
+          getRestToken(resolve, reject);
+        }
+      });
+    }
+
+    function getRestToken(resolve, reject) {
+      Office.context.mailbox.getCallbackTokenAsync({ isRest: true }, function(result) {
+        if (result.status === Office.AsyncResultStatus.Succeeded) {
+          resolve(result.value);
+        } else {
+          reject(new Error('Could not get token: ' + (result.error ? result.error.message : 'Unknown error')));
+        }
+      });
+    }
+
+    function getRestUrl() {
+      return Office.context.mailbox.restUrl || 'https://outlook.office.com/api/v2.0';
+    }
+
+    /**
+     * Call Microsoft Graph (or Outlook REST) endpoint
+     */
+    function graphRequest(method, path, body, token) {
+      var baseUrl = getRestUrl();
+      var url;
+      if (path.startsWith('http')) {
+        url = path;
+      } else {
+        url = baseUrl + '/me' + path;
+      }
+
+      var opts = {
+        method: method,
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        }
+      };
+      if (body) opts.body = JSON.stringify(body);
+      return fetch(url, opts).then(function(r) {
+        if (!r.ok) throw new Error('API error: ' + r.status);
+        if (r.status === 204) return null;
+        return r.json();
+      });
+    }
+
+    /* ══════════════════════════════════════════
+       FOLDER RESOLUTION
+       Walks the folder tree to find target by path
+       e.g. "Operations/Tendering" or "Projects/Beach Club"
+       ══════════════════════════════════════════ */
+
+    function findFolderByPath(token, folderPath) {
+      var parts = folderPath.split('/');
+      var promise = Promise.resolve(null); // start from root
+
+      parts.forEach(function(part, idx) {
+        promise = promise.then(function(parentId) {
+          var url;
+          if (parentId) {
+            url = '/mailFolders/' + parentId + '/childFolders';
+          } else {
+            url = '/mailFolders';
+          }
+          // Fetch folders, look for matching displayName
+          return graphRequest('GET', url + '?$top=50', null, token).then(function(data) {
+            var folders = data.value || [];
+            var match = null;
+            for (var i = 0; i < folders.length; i++) {
+              if (folders[i].displayName.toLowerCase() === part.toLowerCase()) {
+                match = folders[i];
+                break;
+              }
+            }
+            if (!match) throw new Error('Folder not found: ' + part);
+            return match.id;
+          });
+        });
+      });
+
+      return promise;
+    }
+
+    /* ══════════════════════════════════════════
+       MOVE TO FOLDER
+       ══════════════════════════════════════════ */
+
+    function moveToFolder(folderPath) {
+      if (!currentItemId) {
+        showToast('No email selected', 'error');
+        return;
+      }
+
+      var folderName = folderPath.split('/').pop();
+      updateStatus('busy', 'Moving to ' + folderName + '...');
+
+      getGraphToken().then(function(token) {
+        // 1. Resolve folder ID
+        return findFolderByPath(token, folderPath).then(function(folderId) {
+          if (moveThread && currentConversationId) {
+            // 2a. Find all inbox messages with same conversationId
+            return findInboxMessages(token, currentConversationId).then(function(messages) {
+              // 3. Move each message
+              var moves = messages.map(function(msg) {
+                return graphRequest('POST', '/messages/' + msg.id + '/move', {
+                  destinationId: folderId
+                }, token).catch(function(e) {
+                  console.warn('Could not move message ' + msg.id, e);
+                });
+              });
+              return Promise.all(moves).then(function() {
+                return messages.length;
+              });
+            });
+          } else {
+            // 2b. Move just the current message
+            var restId = convertToRestId(currentItemId);
+            return graphRequest('POST', '/messages/' + restId + '/move', {
+              destinationId: folderId
+            }, token).then(function() { return 1; });
+          }
+        });
+      }).then(function(count) {
+        showToast('✓ Moved ' + count + ' message' + (count > 1 ? 's' : '') + ' → ' + folderName, 'success');
+        updateStatus('ready', 'Done — select next email');
+      }).catch(function(err) {
+        console.error(err);
+        showToast('Error: ' + err.message, 'error');
+        updateStatus('error', 'Move failed');
+        setTimeout(function() { loadCurrentItem(); }, 3000);
+      });
+    }
+
+    function findInboxMessages(token, conversationId) {
+      // Get Inbox folder, then search for messages with matching conversationId
+      var encodedConvId = encodeURIComponent(conversationId);
+      var filter = "conversationId eq '" + conversationId.replace(/'/g, "''") + "'";
+      var url = '/mailFolders/Inbox/messages?$filter=' + encodeURIComponent(filter) + '&$select=id,subject&$top=50';
+      return graphRequest('GET', url, null, token).then(function(data) {
+        return data.value || [];
+      });
+    }
+
+    /**
+     * Convert EWS item ID to REST ID format
+     */
+    function convertToRestId(ewsId) {
+      if (Office.context.mailbox.convertToRestId) {
+        return Office.context.mailbox.convertToRestId(ewsId, Office.MailboxEnums.RestVersion.v2_0);
+      }
+      return ewsId;
+    }
+
+    /* ══════════════════════════════════════════
+       FLAG EMAIL
+       ══════════════════════════════════════════ */
+
+    function flagEmail(flagType) {
+      if (!currentItemId) {
+        showToast('No email selected', 'error');
+        return;
+      }
+
+      var labels = {
+        today: 'Today',
+        tomorrow: 'Tomorrow',
+        thisWeek: 'This Week',
+        noDate: 'No Date',
+        complete: 'Complete'
+      };
+
+      updateStatus('busy', 'Flagging: ' + labels[flagType] + '...');
+
+      getGraphToken().then(function(token) {
+        var restId = convertToRestId(currentItemId);
+        var body = buildFlagBody(flagType);
+        return graphRequest('PATCH', '/messages/' + restId, body, token);
+      }).then(function() {
+        var emoji = flagType === 'complete' ? '✓' : '⚑';
+        showToast(emoji + ' Flagged: ' + labels[flagType], 'success');
+        updateStatus('ready', 'Flagged — select next email');
+      }).catch(function(err) {
+        console.error(err);
+        showToast('Error: ' + err.message, 'error');
+        updateStatus('error', 'Flag failed');
+        setTimeout(function() { loadCurrentItem(); }, 3000);
+      });
+    }
+
+    function buildFlagBody(flagType) {
+      var today = new Date();
+      var todayStr = formatDate(today);
+
+      switch (flagType) {
+        case 'today':
+          return {
+            flag: {
+              flagStatus: 'flagged',
+              startDateTime: { dateTime: todayStr + 'T08:00:00', timeZone: 'UTC' },
+              dueDateTime: { dateTime: todayStr + 'T17:00:00', timeZone: 'UTC' }
+            }
+          };
+        case 'tomorrow':
+          var tmrw = new Date(today);
+          tmrw.setDate(tmrw.getDate() + 1);
+          var tmrwStr = formatDate(tmrw);
+          return {
+            flag: {
+              flagStatus: 'flagged',
+              startDateTime: { dateTime: tmrwStr + 'T08:00:00', timeZone: 'UTC' },
+              dueDateTime: { dateTime: tmrwStr + 'T17:00:00', timeZone: 'UTC' }
+            }
+          };
+        case 'thisWeek':
+          var fri = new Date(today);
+          fri.setDate(fri.getDate() + (5 - fri.getDay() + 7) % 7);
+          return {
+            flag: {
+              flagStatus: 'flagged',
+              startDateTime: { dateTime: todayStr + 'T08:00:00', timeZone: 'UTC' },
+              dueDateTime: { dateTime: formatDate(fri) + 'T17:00:00', timeZone: 'UTC' }
+            }
+          };
+        case 'noDate':
+          return {
+            flag: { flagStatus: 'flagged' }
+          };
+        case 'complete':
+          return {
+            flag: { flagStatus: 'complete' }
+          };
+        default:
+          return { flag: { flagStatus: 'flagged' } };
+      }
+    }
+
+    function formatDate(d) {
+      return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+    }
+
+    /* ══════════════════════════════════════════
+       UI HELPERS
+       ══════════════════════════════════════════ */
+
+    function toggleSection(header) {
+      var body = header.nextElementSibling;
+      header.classList.toggle('collapsed');
+      body.classList.toggle('hidden');
+    }
+
+    function toggleThread() {
+      moveThread = !moveThread;
+      var el = document.getElementById('threadToggle');
+      el.classList.toggle('on', moveThread);
+    }
+
+    function filterFolders() {
+      var query = document.getElementById('searchInput').value.toLowerCase().trim();
+      var buttons = document.querySelectorAll('.folder-btn');
+      var sections = document.querySelectorAll('.section[data-section]');
+
+      buttons.forEach(function(btn) {
+        var text = btn.textContent.toLowerCase();
+        if (!query || text.indexOf(query) !== -1) {
+          btn.classList.remove('hidden-by-search');
+        } else {
+          btn.classList.add('hidden-by-search');
+        }
+      });
+
+      // Show/hide sections based on whether they have visible buttons
+      sections.forEach(function(sec) {
+        if (sec.dataset.section === 'flags') return; // always show flags
+        var visibleBtns = sec.querySelectorAll('.folder-btn:not(.hidden-by-search)');
+        sec.style.display = visibleBtns.length > 0 || !query ? '' : 'none';
+        // Auto-expand sections when searching
+        if (query && visibleBtns.length > 0) {
+          sec.querySelector('.section-header').classList.remove('collapsed');
+          sec.querySelector('.section-body').classList.remove('hidden');
+        }
+      });
+    }
+
+    function updateStatus(state, text) {
+      var bar = document.getElementById('statusBar');
+      bar.className = 'status-bar ' + state;
+      document.getElementById('statusText').textContent = text;
+    }
+
+    function showToast(message, type) {
+      var toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = 'toast ' + type + ' show';
+      setTimeout(function() {
+        toast.classList.remove('show');
+      }, 3000);
+    }
+
+    function truncate(str, len) {
+      return str.length > len ? str.substring(0, len) + '…' : str;
+    }
+  </script>
+</body>
+</html>
